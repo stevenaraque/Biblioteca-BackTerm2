@@ -1,0 +1,13 @@
+﻿@* Se pone dentro de <NotAuthorized>. Manda al login y recuerda a dónde quería ir el usuario. *@
+@inject NavigationManager Navegacion
+
+<p><em>Debes iniciar sesión. Redirigiendo...</em></p>
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Ej: estoy en /autores/editar/3 → login?volver=autores%2Feditar%2F3
+        var volver = Navegacion.ToBaseRelativePath(Navegacion.Uri);
+        Navegacion.NavigateTo($"login?volver={Uri.EscapeDataString(volver)}");
+    }
+}

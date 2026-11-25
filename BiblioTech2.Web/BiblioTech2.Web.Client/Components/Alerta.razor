@@ -1,0 +1,27 @@
+﻿@* Muestra el mensaje de la API en verde (éxito) o rojo (error). Se reutiliza en todas las páginas. *@
+ 
+@if (!string.IsNullOrWhiteSpace(Mensaje))
+{
+    <div class="alert @(Exito ? "alert-success" : "alert-danger") alert-dismissible" role="alert">
+        @Mensaje
+ 
+        @if (Errores is not null)
+        {
+            <ul class="mb-0 mt-2">
+                @foreach (var error in Errores.SelectMany(e => e.Value))
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        }
+ 
+        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="OnCerrar"></button>
+    </div>
+}
+ 
+@code {
+    [Parameter] public string? Mensaje { get; set; }
+    [Parameter] public bool Exito { get; set; }
+    [Parameter] public Dictionary<string, string[]>? Errores { get; set; }
+    [Parameter] public EventCallback OnCerrar { get; set; }
+}

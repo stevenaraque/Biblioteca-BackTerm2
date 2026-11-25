@@ -1,0 +1,130 @@
+﻿@page "/autores"
+@* Corre en el NAVEGADOR (WebAssembly). prerender:false = el servidor no la pre-dibuja. *@
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject AutorApiService Servicio
+@inject IJSRuntime JS
+ 
+<PageTitle>Autores</PageTitle>
+ 
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Autores</h1>
+ 
+    <AuthorizeView>
+        <Authorized>
+            <a class="btn btn-primary" href="autores/nuevo">+ Nuevo autor</a>
+        </Authorized>
+        <NotAuthorized>
+            <small class="text-muted"><a href="login?volver=autores">Inicia sesión</a> para crear, editar o eliminar.</small>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+ 
+<Alerta Mensaje="@mensaje" Exito="@exito" OnCerrar="() => mensaje = null" />
+ 
+<input class="form-control mb-3" placeholder="Buscar por nombre o nacionalidad..."
+       @bind="filtro" @bind:event="oninput" />
+ 
+@if (autores is null)
+{
+    <p><em>Cargando autores...</em></p>
+}
+else if (!AutoresFiltrados.Any())
+{
+    <p>No hay autores para mostrar.</p>
+}
+else
+{
+    <table class="table table-striped table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Nacionalidad</th>
+                <th class="text-center">Libros</th>
+                @* La columna Acciones solo existe con sesión *@
+                <AuthorizeView>
+                    <th class="text-end">Acciones</th>
+                </AuthorizeView>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var autor in AutoresFiltrados)
+            {
+                <tr>
+                    <td>@autor.Nombre</td>
+                    <td>@(autor.Nacionalidad ?? "—")</td>
+                    <td class="text-center">@autor.CantidadLibros</td>
+                    <AuthorizeView>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="autores/editar/@autor.Id">Editar</a>
+                            <button class="btn btn-sm btn-outline-danger ms-1"
+                                    disabled="@(eliminandoId == autor.Id)"
+                                    @onclick="() => EliminarAsync(autor)">
+                                @(eliminandoId == autor.Id ? "Eliminando..." : "Eliminar")
+                            </button>
+                        </td>
+                    </AuthorizeView>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+ 
+@code {
+    // Mensaje que manda el formulario al volver: /autores?mensaje=...
+    [SupplyParameterFromQuery(Name = "mensaje")] public string? MensajeRecibido { get; set; }
+ 
+    private List<AutorDto>? autores;          // null = todavía cargando
+    private string filtro = string.Empty;
+    private string? mensaje;
+    private bool exito;
+    private int? eliminandoId;
+ 
+    private IEnumerable<AutorDto> AutoresFiltrados => (autores ?? [])
+        .Where(a => string.IsNullOrWhiteSpace(filtro)
+                 || a.Nombre.Contains(filtro, StringComparison.OrdinalIgnoreCase)
+                 || (a.Nacionalidad?.Contains(filtro, StringComparison.OrdinalIgnoreCase) ?? false));
+ 
+    // Se ejecuta una vez, cuando la página aparece en el navegador.
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(MensajeRecibido))
+            (mensaje, exito) = (MensajeRecibido, true);
+ 
+        await CargarAsync();
+    }
+ 
+    private async Task CargarAsync()
+    {
+        // GET es libre: funciona con o sin sesión.
+        var respuesta = await Servicio.ListarAsync();
+ 
+        if (respuesta.Exito)
+        {
+            autores = respuesta.Datos ?? [];
+        }
+        else
+        {
+            autores = [];
+            (mensaje, exito) = (respuesta.Mensaje, false);
+        }
+    }
+ 
+    private async Task EliminarAsync(AutorDto autor)
+    {
+        // confirm() es JavaScript del navegador; se llama desde C# con IJSRuntime.
+        var confirmado = await JS.InvokeAsync<bool>("confirm", $"¿Eliminar al autor \"{autor.Nombre}\"?");
+        if (!confirmado) return;
+ 
+        eliminandoId = autor.Id;
+        var respuesta = await Servicio.EliminarAsync(autor.Id);
+        eliminandoId = null;
+ 
+        // Éxito → "Autor eliminado correctamente."
+        // 409   → "No se puede eliminar el autor porque tiene N libro(s) asociado(s)."
+        // 401   → "Debes iniciar sesión para realizar esta acción." (token vencido: la sesión se cierra sola)
+        (mensaje, exito) = (respuesta.Mensaje, respuesta.Exito);
+ 
+        if (respuesta.Exito)
+            await CargarAsync();
+    }
+}

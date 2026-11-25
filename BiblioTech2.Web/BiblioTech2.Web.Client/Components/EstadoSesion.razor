@@ -1,0 +1,24 @@
+﻿@* Barra superior: quién está conectado + Cerrar sesión, o el botón Iniciar sesión. *@
+@inject AuthApiService Auth
+@inject NavigationManager Navegacion
+
+<AuthorizeView>
+    <Authorized>
+        <span class="me-3">
+            👤 @context.User.Identity?.Name
+            <span class="badge bg-secondary ms-1">@context.User.FindFirst(ClaimTypes.Role)?.Value</span>
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="CerrarSesionAsync">Cerrar sesión</button>
+    </Authorized>
+    <NotAuthorized>
+        <a class="btn btn-sm btn-primary" href="login">Iniciar sesión</a>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private async Task CerrarSesionAsync()
+    {
+        await Auth.CerrarSesionAsync();
+        Navegacion.NavigateTo("autores");
+    }
+}

@@ -1,0 +1,127 @@
+﻿@page "/autores/nuevo"
+@page "/autores/editar/{Id:int}"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject AutorApiService Servicio
+@inject NavigationManager Navegacion
+ 
+<PageTitle>@Titulo</PageTitle>
+ 
+
+<AuthorizeView>
+    <Authorizing>
+        <p><em>Verificando sesión...</em></p>
+    </Authorizing>
+ 
+    <NotAuthorized>
+        <RedirigirALogin />
+    </NotAuthorized>
+ 
+    <Authorized>
+        <h1>@Titulo</h1>
+ 
+        <Alerta Mensaje="@mensaje" Exito="false" Errores="@errores" OnCerrar="() => mensaje = null" />
+ 
+        @if (cargando)
+        {
+            <p><em>Cargando autor...</em></p>
+        }
+        else if (noEncontrado)
+        {
+            <a class="btn btn-secondary" href="autores">Volver al listado</a>
+        }
+        else
+        {
+            <EditForm Model="autor" OnValidSubmit="GuardarAsync" Context="formulario" class="col-md-6">
+                <DataAnnotationsValidator />
+ 
+                <div class="mb-3">
+                    <label class="form-label" for="nombre">Nombre *</label>
+                    <InputText id="nombre" class="form-control" @bind-Value="autor.Nombre" />
+                    <ValidationMessage For="() => autor.Nombre" class="text-danger" />
+                </div>
+ 
+                <div class="mb-3">
+                    <label class="form-label" for="nacionalidad">Nacionalidad</label>
+                    <InputText id="nacionalidad" class="form-control" @bind-Value="autor.Nacionalidad" />
+                    <ValidationMessage For="() => autor.Nacionalidad" class="text-danger" />
+                </div>
+ 
+                <button type="submit" class="btn btn-primary" disabled="@guardando">
+                    @(guardando ? "Guardando..." : "Guardar")
+                </button>
+                <a class="btn btn-secondary ms-2" href="autores">Cancelar</a>
+            </EditForm>
+        }
+    </Authorized>
+</AuthorizeView>
+ 
+@code {
+    [Parameter] public int? Id { get; set; }
+ 
+    private AutorGuardarDto autor = new();
+    private bool EsEdicion => Id.HasValue;
+    private string Titulo => EsEdicion ? "Editar autor" : "Nuevo autor";
+ 
+    private bool cargando;
+    private bool guardando;
+    private bool noEncontrado;
+    private string? mensaje;
+    private Dictionary<string, string[]>? errores;
+ 
+    protected override async Task OnInitializedAsync()
+    {
+        if (!EsEdicion) return;
+ 
+        cargando = true;
+        var respuesta = await Servicio.ObtenerAsync(Id!.Value);
+        cargando = false;
+ 
+        if (respuesta.Exito && respuesta.Datos is not null)
+        {
+            autor = new AutorGuardarDto
+            {
+                Nombre = respuesta.Datos.Nombre,
+                Nacionalidad = respuesta.Datos.Nacionalidad
+            };
+        }
+        else
+        {
+            noEncontrado = true;
+            mensaje = respuesta.Mensaje; // "El autor X no existe."
+        }
+    }
+ 
+    private async Task GuardarAsync()
+    {
+        guardando = true;
+        mensaje = null;
+        errores = null;
+ 
+        bool ok;
+        string texto;
+        Dictionary<string, string[]>? erroresApi;
+ 
+        if (EsEdicion)
+        {
+            var r = await Servicio.ActualizarAsync(Id!.Value, autor);   // PUT 🔒
+            (ok, texto, erroresApi) = (r.Exito, r.Mensaje, r.Errores);
+        }
+        else
+        {
+            var r = await Servicio.CrearAsync(autor);                   // POST 🔒
+            (ok, texto, erroresApi) = (r.Exito, r.Mensaje, r.Errores);
+        }
+ 
+        guardando = false;
+ 
+        if (ok)
+        {
+            // Volvemos al listado llevando el mensaje de la API.
+            Navegacion.NavigateTo($"autores?mensaje={Uri.EscapeDataString(texto)}");
+            return;
+        }
+ 
+        mensaje = texto;
+        errores = erroresApi;
+    }
+}
